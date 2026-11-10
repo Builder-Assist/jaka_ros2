@@ -29,6 +29,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>jaka_msgs</exec_depend>
   <exec_depend>moveit_ros_planning_interface</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

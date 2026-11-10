@@ -1055,6 +1055,16 @@ Once launched, the RViz interface will open, displaying the robot model. The vis
 
 > **Note:** The default value of **use_rviz_sim** parameter is **false**, so when using Moveit 2 and Rviz with a real robot, there is no need to explicitly specify `use_rviz_sim:=false` unless you want to ensure clarity.
 
+#### Alternative: Single Launch File (no `launches.py` patch)
+
+The `jaka_planner` package also provides `moveit_real_robot.launch.py`, which starts the MoveIt 2 server, `move_group` and RViz together, without `ros2_control`. It only relies on the stock `moveit_configs_utils` helpers, so the modified `launches.py` described in section 4.2 does not need to be installed:
+
+```bash
+ros2 launch jaka_planner moveit_real_robot.launch.py ip:=<robot_ip> model:=<robot_model>
+```
+
+Pass `start_server:=false` if `moveit_server.launch.py` is already running in another terminal, and `use_rviz:=false` to run without RViz.
+
 ### 4.4.3 Planning & Executing Trajectory in RViz with Real Robot
 
 Once the MoveIt 2 server and RViz interface are running, you can plan and execute trajectories directly from RViz. In RViz, you can plan and execute motions for the JAKA robot using **interactive markers**.  
