@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/empty.hpp"
 #include "std_srvs/srv/empty.hpp"
@@ -215,7 +216,16 @@ int main(int argc, char *argv[])
     string robot_model = node->declare_parameter("model", default_model);
 
     // Connect to robot
-    robot.login_in(robot_ip.c_str(), false);
+    // Controller credentials (Coboπ 3.x controllers require a gRPC login with a user account)
+    const char *username = std::getenv("JAKA_SDK_USERNAME");
+    const char *password = std::getenv("JAKA_SDK_PASSWORD");
+    int login_ret = robot.login_in(robot_ip.c_str(), true, username, password);
+    if (login_ret != 0)
+    {
+        RCLCPP_ERROR(node->get_logger(), "login_in failed with code %d (check JAKA_SDK_USERNAME / JAKA_SDK_PASSWORD and the robot IP)", login_ret);
+        rclcpp::shutdown();
+        return 1;
+    }
     rclcpp::Rate rate(125);
 
     // Turn off servo at startup

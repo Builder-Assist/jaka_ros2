@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_srvs/srv/empty.hpp"
@@ -1284,7 +1285,10 @@ void login_callback(
         return;
     }
 
-    int ret = robot.login_in(robot_ip.c_str(), false);
+    // Controller credentials (Coboπ 3.x controllers require a gRPC login with a user account)
+    const char *username = std::getenv("JAKA_SDK_USERNAME");
+    const char *password = std::getenv("JAKA_SDK_PASSWORD");
+    int ret = robot.login_in(robot_ip.c_str(), true, username, password);
 
     if (ret == 0)
     {

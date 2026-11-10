@@ -620,6 +620,8 @@ Call the lifecycle services in the following order.
 ```bash
 ros2 service call /jaka_driver/login std_srvs/srv/Trigger "{}"
 ```
+> **Note:** Controllers running Coboπ 3.x require a user account for the SDK. Export `JAKA_SDK_USERNAME` and `JAKA_SDK_PASSWORD` in the terminal that starts `jaka_driver` (or `moveit_server`) before launching.
+
 
 **2) Power on the robot**  
 ```bash
