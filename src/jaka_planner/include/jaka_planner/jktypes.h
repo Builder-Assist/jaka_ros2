@@ -7,12 +7,39 @@
 
 #define TRUE 1
 #define FALSE 0
+
 #include <stdio.h>
 #include <stdint.h>
 
 typedef int BOOL;    // SDK bool type
 typedef int JKHD;    // SDK handler for C
 typedef int errno_t; // SDK error code feedback
+
+/**
+ * SDK log levels. Selecting a level also enables all more severe levels.
+ * ERROR: final failures; WARN: recoverable issues; INFO: operations and states;
+ * TRACE: complete communication payloads.
+ */
+typedef enum {
+    SDK_LOG_ERROR = 0,
+    SDK_LOG_WARN = 1,
+    SDK_LOG_INFO = 2,
+    SDK_LOG_TRACE = 3
+} LogLevel;
+
+#define MAX_PAYLOAD_CNT 16
+#define MAX_FTSENSOR_CNT 20
+#define MAX_EXT_CNT 10
+#define MAX_AXIS 7
+#define MAX_KINE_INVERSE_SOLUTIONS 8
+#define MAX_USER_DEFINED_VARIABLE_STRING_LENGTH 4096
+#define MAX_USER_DEFINED_VARIABLE_ARRAY_LENGTH 512
+#define MAX_USER_DEFINED_VARIABLE_ALIAS_LENGTH 100
+#define MAX_POSE_VARIABLE_ALIAS_LENGTH 100
+#define MIN_USER_FRAME_ID 0
+#define MAX_USER_FRAME_ID 16
+#define MIN_TOOL_ID 0
+#define MAX_TOOL_ID 16
 
 /**
  * @brief cartesian position without orientation
@@ -50,6 +77,13 @@ typedef struct {
     Rpy rpy;            ///< cartesian rotation
 
 } CartesianPose;
+
+/**
+ * @brief joint position
+ */
+typedef struct {
+    double jVal[6]; ///< each joint，unit：rad
+} JointValue;
 
 typedef struct {
     CartesianPose pose;
@@ -109,6 +143,74 @@ typedef struct {
 typedef struct {
     UserVariable v[100];
 } UserVariableList;
+
+/**
+ * @brief Type of a V3 user-defined variable.
+ */
+typedef enum {
+    USER_VAR_TYPE_NUMBER = 0,
+    USER_VAR_TYPE_STRING = 1,
+    USER_VAR_TYPE_ARRAY = 2,
+    USER_VAR_TYPE_POSE = 3,
+    USER_VAR_TYPE_VELOCITY = 4
+} UserDefinedVariableType;
+
+typedef struct {
+    double value;
+} UserDefinedNumberValue;
+
+typedef struct {
+    char value[MAX_USER_DEFINED_VARIABLE_STRING_LENGTH];
+} UserDefinedStringValue;
+
+typedef struct {
+    double values[MAX_USER_DEFINED_VARIABLE_ARRAY_LENGTH];
+    int value_count;
+} UserDefinedArrayValue;
+
+typedef struct {
+    CartesianPose pose;   ///< X/Y/Z in mm; RX/RY/RZ in rad
+    JointValue joint_pos; ///< Joint angles in rad
+} UserDefinedPoseValue;
+
+typedef struct {
+    BOOL joint_enabled;
+    double joint_velocity;              ///< rad/s
+    double joint_acceleration;          ///< rad/s^2
+    BOOL linear_enabled;
+    double linear_velocity;             ///< mm/s
+    double linear_acceleration;         ///< mm/s^2
+    double orientation_velocity;        ///< rad/s
+    double orientation_acceleration;    ///< rad/s^2
+    BOOL external_linear_enabled;
+    double external_linear_velocity;    ///< mm/s
+    double external_linear_acceleration; ///< mm/s^2
+    BOOL external_rotary_enabled;
+    double external_rotary_velocity;    ///< rad/s
+    double external_rotary_acceleration; ///< rad/s^2
+} UserDefinedVelocityValue;
+
+/**
+ * @brief Storage for every supported user-defined variable value.
+ *
+ * This is deliberately a regular struct instead of a union so that language
+ * bindings can marshal it with sequential layout. Only the member selected by
+ * UserDefinedVariable.type is semantically valid.
+ */
+typedef struct {
+    UserDefinedNumberValue number_value;
+    UserDefinedStringValue string_value;
+    UserDefinedArrayValue array_value;
+    UserDefinedPoseValue pose_value;
+    UserDefinedVelocityValue velocity_value;
+} UserDefinedVariableValue;
+
+/** @brief V3 user-defined variable. */
+typedef struct {
+    char alias[MAX_USER_DEFINED_VARIABLE_ALIAS_LENGTH];
+    UserDefinedVariableType type;
+    UserDefinedVariableValue value;
+} UserDefinedVariable;
 
 /**
  * @brief operations when lost communication
@@ -181,14 +283,68 @@ typedef struct {
 typedef struct {
     double mass;            ///< mass, unit：kg
     CartesianTran centroid; ///< centroid, unit：mm
+    int payload_id;         ///< payload identifier
 } PayLoad;
 
 /**
- * @brief joint position
+ * @brief Shoulder configuration used by inverse kinematics.
+ */
+typedef enum {
+    POSE_SHOULDER_CONFIG_NONE = 0, ///< Do not constrain the shoulder configuration.
+    POSE_SHOULDER_CONFIG_LEFT,     ///< Use the left-shoulder configuration.
+    POSE_SHOULDER_CONFIG_RIGHT     ///< Use the right-shoulder configuration.
+} PoseShoulderConfig;
+
+/**
+ * @brief Elbow configuration used by inverse kinematics.
+ */
+typedef enum {
+    POSE_ELBOW_CONFIG_NONE = 0, ///< Do not constrain the elbow configuration.
+    POSE_ELBOW_CONFIG_UP,       ///< Use the elbow-up configuration.
+    POSE_ELBOW_CONFIG_DOWN      ///< Use the elbow-down configuration.
+} PoseElbowConfig;
+
+/**
+ * @brief Wrist configuration used by inverse kinematics.
+ */
+typedef enum {
+    POSE_WRIST_CONFIG_NONE = 0,     ///< Do not constrain the wrist configuration.
+    POSE_WRIST_CONFIG_NON_FLIP,     ///< Use the non-flipped wrist configuration.
+    POSE_WRIST_CONFIG_FLIP          ///< Use the flipped wrist configuration.
+} PoseWristConfig;
+
+/**
+ * @brief Inverse kinematics configuration of a pose variable.
  */
 typedef struct {
-    double jVal[6]; ///< each joint，unit：rad
-} JointValue;
+    PoseShoulderConfig shoulder;
+    PoseElbowConfig elbow;
+    PoseWristConfig wrist;
+} PoseInverseKinematicsConfig;
+
+/**
+ * @brief V3 pose variable.
+ */
+typedef struct {
+    char alias[MAX_POSE_VARIABLE_ALIAS_LENGTH];
+    CartesianPose pose;                               ///< X/Y/Z in mm; RX/RY/RZ in rad
+    int tool_id;                                       ///< TCP ID, range: [0, 16]
+    int frame_id;                                      ///< User coordinate system ID, range: [0, 16]
+    PoseInverseKinematicsConfig inverse_config;
+    double ext_axes[6];
+    JointValue joint_pos;                             ///< Joint angles in rad
+    CartesianPose tool_offset;                        ///< X/Y/Z in mm; RX/RY/RZ in rad
+    CartesianPose user_offset;                        ///< X/Y/Z in mm; RX/RY/RZ in rad
+    BOOL variable;                                     ///< FALSE: read-only, TRUE: writable
+} PoseVariable;
+
+/**
+ * @brief All inverse kinematics solutions for a Cartesian position.
+ */
+typedef struct {
+    int inverse_res_num; ///< number of valid joint_pos entries, max MAX_KINE_INVERSE_SOLUTIONS
+    JointValue joint_pos[MAX_KINE_INVERSE_SOLUTIONS]; ///< inverse kinematics solutions, unit: rad
+} KineInverseAllResult;
 
 typedef enum{
     JogStop = 0,
@@ -257,6 +413,21 @@ typedef enum {
     IO_EIP_SLAVE       ///< ETHRENET/IP slave station IO, index start from 0.
 } IOType;
 
+/**
+ * @brief DO info
+ */
+typedef struct {
+    IOType io_type;    ///< IO type
+    int index;
+    BOOL value;
+} DOInfo;
+
+typedef struct {
+    IOType io_type;    ///< IO type
+    int index;
+    BOOL value;
+    int submod;
+} DI_Info;
 /**
 * @brief EXtio Data
 */
@@ -349,7 +520,7 @@ typedef struct {
     int motion_line;     ///<  motion CMD id
     int motion_line_sdk; ///< reserved
     BOOL inpos;          ///< current motion CMD is done, you should always check queue info at the same time
-    BOOL err_add_line;   /// fail to add motion CMD in case robot is already at target position
+    int err_add_line;   /// fail to add motion CMD in case robot is already at target position
     int queue;           ///< number of motion CMD in queue
     int active_queue;    ///< number of motion CMD which is under blending
     BOOL queue_full;     ///< cannot push any more motion CMD if queue is full
@@ -416,6 +587,81 @@ typedef struct {
     double tz; ///< rz componet
 } FTxyz;
 
+typedef struct {
+    double linear[3];
+    double angular[3];
+} VelocityLimit;
+typedef struct {
+    int id;           ///< Unique identifier of the sensor (assigned by system)
+    int sensor_model; ///< Sensor model ID, 2 for USB sensor, 6 for TIO sensor
+    char name[32];    ///< Human-readable sensor name (null-terminated C string)
+    int active;       ///< Activation status: 1 if normal, 0 if the sensor is to be deleted
+    int status;       ///< Current operational status code of the sensor: 1 if normal, -1 if in error
+} FTSensorBasicInfo;
+
+typedef struct {
+    int count;  ///< Number of sensors
+    FTSensorBasicInfo info[MAX_FTSENSOR_CNT];   ///< Array to hold sensor information
+} FTSensorBasicInfoStr;
+
+typedef struct {
+    int rule_id;   ///< User-defined rule identifier, can be 0,1,2
+    int sensor_id; ///< ID of the associated force-torque sensor
+    int active;    ///< Enable flag: 1 for enabled, 0 for disabled
+    FTxyz ft;      ///< Force and torque threshold values
+} FTSensorSoftLimitRule;
+
+typedef struct {
+    int count;  ///< Number of valid rules, can be 0,1,2,3
+    FTSensorSoftLimitRule rule[3];   ///< Array to hold sensor information
+} FTSensorSoftLimitRuleStr;
+
+typedef struct {
+    int count;
+    int sensor_id[MAX_FTSENSOR_CNT];
+} FTLinkedSensorIDStr;
+
+typedef struct {
+    FTxyz ft;
+    double min_val;
+    double max_val;
+} FTSensorThresholdStr;
+
+typedef struct {
+    int status;
+    FTxyz ft;
+} FTSensorDataStr;
+typedef struct {
+    int sensor_model;    ///< Sensor model identifier
+    char name[50];       ///< Name of the sensor
+    char comm_param[50]; ///< Communication parameters
+} FTSensorConfigStr;
+
+typedef struct {
+    double jVel[6]; ///< each joint，unit: rad/s
+} JointVelocity;
+typedef struct {
+    double jtorq[6]; ///< each joint torque，unit：N/m
+} JointTorque;
+typedef struct
+{
+    int cab_din[16];
+    int cab_dout[16];
+    double cab_ain[2];
+    double cab_aout[2];
+    int tool_din[2];
+    int tool_dout[2];
+    double tool_ain[2];
+} EdgIOState;
+
+typedef struct {
+    JointValue jointVal; ///< each joint position，unit：rad
+    JointVelocity jointVel; ///< each joint velocity, unit: rad/s
+    JointTorque jointTorq; ///< each joint torque，unit：N/m
+    CartesianPose cartpose;
+    FTxyz torqSensor; 
+    EdgIOState IOState;
+} EDGState;
 /**
  @brief
  */
@@ -429,6 +675,7 @@ typedef struct {
     double a[6];
     double d[6];
     double joint_homeoff[6];
+    double beta[6];
 } DHParam;
 
 /**
@@ -440,8 +687,13 @@ typedef struct {
     int sig_type;      ///< type
     int sig_addr;      ///< address
     int value;         ///<
-    int frequency;     ///< must no greater than 10
+    int frequency;     ///< must no greater than 20
 } SignInfo;
+
+typedef struct {
+    char sig_name[20]; ///< signal name
+    int frequency;     ///< must no greater than 20
+} SignInfo_simple;
 
 /**
  *  @brief rs485 RTU signal config param
@@ -554,6 +806,11 @@ typedef struct
 	char message[120]; ///< error message
 } ErrorCode;
 
+typedef struct
+{
+	int gain[6]; ///< error message
+} DragFrictionCompensationGainList;
+
 /**
 * @brief callback
 * @param info remember to assign char array, no less than 1024 bytes
@@ -561,5 +818,106 @@ typedef struct
 				which is packed as json. The "data" part represent the current(new) value
 */
 typedef void (*CallBackFuncType)(char* info);
+
+
+typedef struct{
+    double end_pos; // mm for linear axis, rad for rotary axis
+    double vel; // mm/s for linear axis, rad/s for rotary axis
+    double acc; // mm/s^2 for linear axis, rad/s^2 for rotary axis
+    double jerk; // mm/s^3 for linear axis, rad/s^3 for rotary axis
+    double blend_tol; // mm
+}MoveExtInfo;
+
+typedef struct{
+    double end_pos[MAX_AXIS];
+    double j_vel;
+    double j_acc;
+    double j_jerk;
+    double blend_tol;
+} MovejInfo;
+
+typedef struct{
+    CartesianPose end_pos;
+    double vel;
+    double acc;
+    double jerk;
+    double ori_vel;
+    double ori_acc;
+    double ori_jerk;
+    double blend_tol;
+} MovelInfo;
+
+typedef struct{
+
+    CartesianPose mid_pos;
+    CartesianPose end_pos;
+    double vel;
+    double acc;
+    double jerk;
+    double ori_vel;
+    double ori_acc;
+    double ori_jerk;
+    double blend_tol;
+    double circle_cnt;
+    int circle_mode;
+} MovecInfo;
+
+typedef enum{
+    JOINT_MOVE = 0,
+    LINEAR_MOVE = 1,
+    CIRCULAR_MOVE = 2
+} MoveType;
+
+typedef struct{
+    int motion_unit_type;
+    int motion_unit_id; // robot_id(motion_unit_type is 0) or ext_id(motion_unit_type is 1)
+    MoveType move_type;
+    MoveMode move_mode;
+    MoveExtInfo move_ext_info;
+    MovejInfo movej_info;
+    MovelInfo movel_info;
+    MovecInfo movec_info;
+}MultiMovInfo;
+
+typedef struct {
+    int count;  ///< Number of move
+    MultiMovInfo info[MAX_EXT_CNT];
+} MultiMovInfoList;
+
+typedef struct
+{
+    BOOL is_powered;    // 已上电
+    BOOL is_powering;   // 正在上电
+    BOOL is_enabled;    // 已使能
+    BOOL is_enabling;   // 正在使能
+    BOOL is_inpos;      // 已到位
+    BOOL is_on_limit;   // 是否处于限位
+    double pos_cmd;     //  目标位置
+    double pos_fdb;     //  反馈位置
+} ExtAxisStatus;
+
+typedef struct
+{
+    int count;
+    ExtAxisStatus status[MAX_EXT_CNT];
+}ExtAxisStatusList;
+
+/**
+ * @brief simulated robot info
+ */
+#define MAX_SIM_ROBOT_LIST 128
+
+typedef struct {
+    int index;           ///< robot index
+    char name[100];      ///< robot name
+} SimRobotInfo;
+
+/**
+ * @brief list of simulated robots
+ */
+typedef struct {
+    int count;                              ///< number of robots in list
+    SimRobotInfo list[MAX_SIM_ROBOT_LIST];  ///< robot info array
+} SimRobotInfoList;
 
 #endif
