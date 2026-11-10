@@ -99,6 +99,11 @@ link_directories(${LIBRARY_DIR})
 target_link_libraries(moveit_server ${LIBRARY_DIR}/libjakaAPI.so)
 target_link_libraries(moveit_test ${LIBRARY_DIR}/libjakaAPI.so)
 
+# Install the JAKA SDK shared library (added to LD_LIBRARY_PATH by the ament environment hooks)
+install(FILES ${LIBRARY_DIR}/libjakaAPI.so
+  DESTINATION lib
+)
+
 # Install executables
 install(TARGETS
   moveit_server

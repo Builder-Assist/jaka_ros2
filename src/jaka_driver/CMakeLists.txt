@@ -113,6 +113,11 @@ target_link_libraries(sdk_test ${LIBRARY_DIR}/libjakaAPI.so)
 target_link_libraries(client ${LIBRARY_DIR}/libjakaAPI.so)
 target_link_libraries(servoj_demo ${LIBRARY_DIR}/libjakaAPI.so)
 
+# Install the JAKA SDK shared library (added to LD_LIBRARY_PATH by the ament environment hooks)
+install(FILES ${LIBRARY_DIR}/libjakaAPI.so
+  DESTINATION lib
+)
+
 # Install executables
 install(TARGETS
   jaka_driver
